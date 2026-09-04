@@ -41,15 +41,25 @@ intercom profile-set bob --model claude-sonnet-5 --effort medium \
     --base-url https://my-proxy.example.com --token sk-... \
     --cwd C:/work/frontend --preamble "你是前端负责人。"
 
-# 2. Start the broker
+# 2. Start the broker — a browser console opens automatically
 intercom broker
 
-# 3. Talk
+# 3. Talk (CLI …)
 intercom send alice "和 bob 对齐一下 API 字段命名"
 intercom link alice bob        # hands-free duplex; pauses after 20 hops
 intercom tail                  # watch the live event stream
 intercom list                  # who is alive, which session id, which profile
 ```
+
+## Web console (no CLI needed)
+
+`intercom broker` also serves a Chinese web console at `http://127.0.0.1:9780`
+(opened automatically; `--web-port 0` disables it, `--no-open` skips the
+browser). Everything is point-and-click: create a session preset (name, API
+endpoint, key, model, effort), start/stop a session, chat with it, and bridge
+two sessions with two dropdowns. Live updates arrive over SSE — no refresh
+needed. Tokens never leave the server: API responses only expose
+`has_token: true`.
 
 ## How sessions talk
 
@@ -109,10 +119,13 @@ intercom/
 ├── profiles.py   # per-session endpoint/key/model/effort registry
 ├── process.py    # ManagedSession: stream-json process plumbing
 ├── broker.py     # TCP server, routing, links, hop guard, pub-sub
+├── web.py        # zero-dependency web console (HTTP + SSE)
+├── static/index.html
 └── cli.py        # broker / profile-* / spawn / send / link / tail / ...
 tests/
 ├── fake_claude.py    # stream-json emulator (echo + intercom blocks)
-└── test_intercom.py  # 7 E2E tests over real subprocess pipes
+├── test_intercom.py  # broker E2E over real subprocess pipes
+└── test_web.py       # web console E2E over real HTTP + SSE
 ```
 
 ## License

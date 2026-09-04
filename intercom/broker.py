@@ -24,7 +24,7 @@ from .process import ManagedSession, assistant_text, is_turn_end
 from .profiles import ProfileStore
 from . import protocol
 
-_INTERCOM_RE = re.compile(r"```intercom\s*\n(.*?)\n?```", re.DOTALL)
+_INTERCOM_RE = re.compile(r"```intercom\s*(\{.*?\})\s*```", re.DOTALL)
 
 
 @dataclass
@@ -53,8 +53,16 @@ class Broker:
     claude_bin: str = "claude"
     sessions: dict[str, ManagedSession] = field(default_factory=dict)
     links: dict[tuple[str, str], Link] = field(default_factory=dict)
-    subscribers: set[asyncio.StreamWriter] = field(default_factory=set)
+    subscribers: set[asyncio.Queue] = field(default_factory=set)  # event queues (TCP tail / web SSE)
     _pending: dict[str, list[str]] = field(default_factory=dict)  # name -> assistant texts of current turn
+
+    def subscribe(self) -> asyncio.Queue:
+        q: asyncio.Queue = asyncio.Queue(maxsize=1000)
+        self.subscribers.add(q)
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue) -> None:
+        self.subscribers.discard(q)
 
     # ── session lifecycle ─────────────────────────────────────────────
     async def spawn(self, name: str) -> dict:
@@ -174,19 +182,14 @@ class Broker:
 
     async def _broadcast(self, event: dict) -> None:
         event = {"ts": time.time(), **event}
-        dead = []
-        for w in self.subscribers:
+        for q in self.subscribers:
             try:
-                w.write(protocol.encode({"event": event}))
-                await w.drain()
-            except (OSError, ConnectionError):
-                dead.append(w)
-        for w in dead:
-            self.subscribers.discard(w)
+                q.put_nowait(event)
+            except asyncio.QueueFull:
+                self.subscribers.discard(q)
 
 
 async def _handle(broker: Broker, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-    tailing = False
     try:
         while True:
             line = await reader.readline()
@@ -213,9 +216,19 @@ async def _handle(broker: Broker, reader: asyncio.StreamReader, writer: asyncio.
             elif op == "stop":
                 res = await broker.stop(str(req.get("name") or ""))
             elif op == "tail":
-                broker.subscribers.add(writer)
-                tailing = True
-                res = {"ok": True, "tailing": True}
+                q = broker.subscribe()
+                writer.write(protocol.encode({"ok": True, "tailing": True}))
+                await writer.drain()
+                try:
+                    while True:
+                        ev = await q.get()
+                        writer.write(protocol.encode({"event": ev}))
+                        await writer.drain()
+                except (OSError, ConnectionError, asyncio.CancelledError):
+                    pass
+                finally:
+                    broker.unsubscribe(q)
+                break
             elif op == "shutdown":
                 res = {"ok": True}
                 writer.write(protocol.encode(res))
@@ -227,12 +240,10 @@ async def _handle(broker: Broker, reader: asyncio.StreamReader, writer: asyncio.
             writer.write(protocol.encode(res))
             await writer.drain()
     finally:
-        broker.subscribers.discard(writer)
-        if not tailing:
-            try:
-                writer.close()
-            except OSError:
-                pass
+        try:
+            writer.close()
+        except OSError:
+            pass
 
 
 async def serve(broker: Broker, port: int = protocol.DEFAULT_PORT) -> asyncio.AbstractServer:

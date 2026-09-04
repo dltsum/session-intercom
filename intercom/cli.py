@@ -83,6 +83,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p_br = sub.add_parser("broker", help="前台运行 broker 守护进程")
     p_br.add_argument("--port", type=int, default=protocol.DEFAULT_PORT)
+    p_br.add_argument("--web-port", type=int, default=9780, help="网页控制台端口，0 关闭")
+    p_br.add_argument("--no-open", action="store_true", help="不自动打开浏览器")
 
     for cmd, help_text in [("spawn", "启动 session 进程"), ("stop", "停止 session 进程")]:
         p = sub.add_parser(cmd, help=help_text)
@@ -134,6 +136,14 @@ def main(argv: list[str] | None = None) -> int:
         async def _run() -> None:
             server = await serve(broker, args.port)
             print(f"[intercom] broker 监听 {protocol.HOST}:{server.sockets[0].getsockname()[1]}（Ctrl-C 停止）")
+            if args.web_port:
+                from .web import serve_web
+                web = await serve_web(broker, args.web_port)
+                url = f"http://127.0.0.1:{web.sockets[0].getsockname()[1]}"
+                print(f"[intercom] 网页控制台: {url}")
+                if not args.no_open:
+                    import webbrowser
+                    webbrowser.open(url)
             async with server:
                 await server.serve_forever()
 

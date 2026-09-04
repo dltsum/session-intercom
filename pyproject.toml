@@ -15,3 +15,6 @@ intercom = "intercom.cli:main"
 
 [tool.setuptools]
 packages = ["intercom"]
+
+[tool.setuptools.package-data]
+intercom = ["static/*.html"]
