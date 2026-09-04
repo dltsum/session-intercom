@@ -1,0 +1,20 @@
+{
+  "alice": {
+    "base_url": "https://api.anthropic.com",
+    "auth_token": "sk-ant-...",
+    "model": "claude-opus-5",
+    "effort": "high",
+    "cwd": "C:/work/backend",
+    "preamble": "你是后端负责人，回答要简洁直接。",
+    "resume_session_id": null
+  },
+  "bob": {
+    "base_url": "https://my-proxy.example.com",
+    "auth_token": "sk-...",
+    "model": "claude-sonnet-5",
+    "effort": "medium",
+    "cwd": "C:/work/frontend",
+    "preamble": "你是前端负责人。",
+    "resume_session_id": null
+  }
+}

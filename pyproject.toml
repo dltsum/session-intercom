@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "session-intercom"
+version = "0.1.0"
+description = "Real-time cross-session intercom for Claude Code with per-session API endpoint/key/model/effort presets"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+
+[project.scripts]
+intercom = "intercom.cli:main"
+
+[tool.setuptools]
+packages = ["intercom"]
